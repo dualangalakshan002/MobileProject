@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:cosmic_havoc/components/asteroid.dart';
 import 'package:cosmic_havoc/components/bomb.dart';
+import 'package:cosmic_havoc/components/enemy.dart'; // NEW IMPORT
 import 'package:cosmic_havoc/components/explosion.dart';
 import 'package:cosmic_havoc/components/laser.dart';
 import 'package:cosmic_havoc/components/pickup.dart';
@@ -26,6 +27,10 @@ class Player extends SpriteAnimationComponent
   late Timer _laserPowerupTimer;
   Shield? activeShield;
   late String _color;
+
+  // Health Variables
+  double maxHealth = 100;
+  double health = 100;
 
   Player() {
     _explosionTimer = Timer(
@@ -71,13 +76,11 @@ class Player extends SpriteAnimationComponent
       _laserPowerupTimer.update(dt);
     }
 
-    // combine the joystick input with the keyboard movement
     final Vector2 movement = game.joystick.relativeDelta + _keyboardMovement;
     position += movement.normalized() * 200 * dt;
 
     _handleScreenBounds();
 
-    // perform the shooting logic
     _elapsedFireTime += dt;
     if (_isShooting && _elapsedFireTime >= _fireCooldown) {
       _fireLaser();
@@ -100,14 +103,12 @@ class Player extends SpriteAnimationComponent
     final double screenWidth = game.size.x;
     final double screenHeight = game.size.y;
 
-    // prevent the player from going off the top or bottom edges
     position.y = clampDouble(
       position.y,
       size.y / 2,
       screenHeight - size.y / 2,
     );
 
-    // perform wraparound if the player goes over the left or right edge
     if (position.x < 0) {
       position.x = screenWidth;
     } else if (position.x > screenWidth) {
@@ -143,6 +144,27 @@ class Player extends SpriteAnimationComponent
           angle: -15 * degrees2Radians,
         ),
       );
+    }
+  }
+
+  void takeDamage(double damage) {
+    if (_isDestroyed) return;
+
+    health -= damage;
+
+    add(ColorEffect(
+      const Color.fromRGBO(255, 0, 0, 1.0),
+      EffectController(
+        duration: 0.1,
+        alternate: true,
+      ),
+    ));
+
+    game.audioManager.playSound('hit');
+
+    if (health <= 0) {
+      health = 0;
+      _handleDestruction();
     }
   }
 
@@ -203,8 +225,22 @@ class Player extends SpriteAnimationComponent
 
     if (_isDestroyed) return;
 
-    if (other is Asteroid) {
-      if (activeShield == null) _handleDestruction();
+    // UPDATED: Handle collision with Asteroid OR Enemy
+    if (other is Asteroid || other is Enemy) {
+      if (activeShield != null) {
+        // Shield logic: Destroy the object hitting us
+        if (other is Asteroid) other.takeDamage();
+        if (other is Enemy) (other as Enemy).takeDamage();
+        return;
+      }
+
+      // Player Crash Logic
+      takeDamage(30); // Crashing hurts more than a laser
+
+      // Damage the object we hit
+      if (other is Asteroid) other.takeDamage();
+      if (other is Enemy) (other as Enemy).takeDamage();
+
     } else if (other is Pickup) {
       game.audioManager.playSound('collect');
 

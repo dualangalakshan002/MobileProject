@@ -3,6 +3,9 @@ import 'dart:math';
 
 import 'package:cosmic_havoc/components/asteroid.dart';
 import 'package:cosmic_havoc/components/audio_manager.dart';
+import 'package:cosmic_havoc/components/enemy.dart';
+import 'package:cosmic_havoc/components/enemy_laser.dart';
+import 'package:cosmic_havoc/components/health_bar.dart';
 import 'package:cosmic_havoc/components/pickup.dart';
 import 'package:cosmic_havoc/components/player.dart';
 import 'package:cosmic_havoc/components/shoot_button.dart';
@@ -19,6 +22,7 @@ class MyGame extends FlameGame
   late Player player;
   late JoystickComponent joystick;
   late SpawnComponent _asteroidSpawner;
+  late SpawnComponent _enemySpawner;
   late SpawnComponent _pickupSpawner;
   final Random _random = Random();
   late ShootButton _shootButton;
@@ -33,10 +37,12 @@ class MyGame extends FlameGame
     await Flame.device.fullScreen();
     await Flame.device.setPortrait();
 
-    // initialize the audio manager and play the music
+    // initialize the audio manager
     audioManager = AudioManager();
     await add(audioManager);
-    audioManager.playMusic();
+
+    // REMOVED: audioManager.playMusic();
+    // We cannot play music here because the user hasn't clicked yet.
 
     _createStars();
 
@@ -44,13 +50,21 @@ class MyGame extends FlameGame
   }
 
   void startGame() async {
+    // START MUSIC HERE (User has clicked "Start" button)
+    audioManager.playMusic();
+
     await _createJoystick();
     await _createPlayer();
     _createShootButton();
     _createAsteroidSpawner();
+    _createEnemySpawner();
     _createPickupSpawner();
     _createScoreDisplay();
+
+    add(HealthBar());
   }
+
+  // ... (The rest of your file stays exactly the same) ...
 
   Future<void> _createPlayer() async {
     player = Player()
@@ -92,6 +106,16 @@ class MyGame extends FlameGame
       selfPositioning: true,
     );
     add(_asteroidSpawner);
+  }
+
+  void _createEnemySpawner() {
+    _enemySpawner = SpawnComponent.periodRange(
+      factory: (index) => Enemy(position: _generateSpawnPosition()),
+      minPeriod: 2.0,
+      maxPeriod: 4.0,
+      selfPositioning: true,
+    );
+    add(_enemySpawner);
   }
 
   void _createPickupSpawner() {
@@ -170,29 +194,31 @@ class MyGame extends FlameGame
   }
 
   void restartGame() {
-    // remove any asteroids and pickups that are currently in the game
     children.whereType<PositionComponent>().forEach((component) {
-      if (component is Asteroid || component is Pickup) {
+      if (component is Asteroid ||
+          component is Pickup ||
+          component is HealthBar ||
+          component is Enemy ||
+          component is EnemyLaser) {
         remove(component);
       }
     });
 
-    // reset the asteroid and pickup spawners
     _asteroidSpawner.timer.start();
     _pickupSpawner.timer.start();
+    _enemySpawner.timer.start();
 
-    // reset the score to 0
     _score = 0;
     _scoreDisplay.text = '0';
 
-    // create a new player sprite
     _createPlayer();
+
+    add(HealthBar());
 
     resumeEngine();
   }
 
   void quitGame() {
-    // remove everything from the game except the stars
     children.whereType<PositionComponent>().forEach((component) {
       if (component is! Star) {
         remove(component);
@@ -201,8 +227,8 @@ class MyGame extends FlameGame
 
     remove(_asteroidSpawner);
     remove(_pickupSpawner);
+    remove(_enemySpawner);
 
-    // show the title overlay
     overlays.add('Title');
 
     resumeEngine();
