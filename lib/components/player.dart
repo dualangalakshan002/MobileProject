@@ -274,25 +274,29 @@ class Player extends SpriteAnimationComponent
       if (other is Enemy) other.takeDamage();
 
     } else if (other is Pickup) {
-      game.audioManager.playSound('collect');
+        game.audioManager.playSound('collect');
+        other.removeFromParent();
+        game.incrementScore(1);
 
-      other.removeFromParent();
-      game.incrementScore(1);
-
-      switch (other.pickupType) {
-        case PickupType.laser:
-          _laserPowerupTimer.start();
-          break;
-        case PickupType.bomb:
-          game.add(Bomb(position: position.clone()));
-          break;
-        case PickupType.shield:
-          if (activeShield != null) remove(activeShield!);
-          activeShield = Shield();
-          add(activeShield!);
-          break;
+        switch (other.pickupType) {
+          case PickupType.laser:
+            _laserPowerupTimer.start();
+            break;
+          case PickupType.bomb:
+            game.add(Bomb(position: position.clone()));
+            break;
+          case PickupType.shield:
+            if (activeShield != null) remove(activeShield!);
+            activeShield = Shield();
+            add(activeShield!);
+            break;
+          case PickupType.health: // NEW
+            health += 30; // restore 30 health
+            if (health > maxHealth) health = maxHealth;
+            break;
+        }
       }
-    }
+
   }
 
   @override

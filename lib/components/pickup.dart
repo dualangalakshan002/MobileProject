@@ -1,12 +1,11 @@
 import 'dart:async';
-
 import 'package:cosmic_havoc/my_game.dart';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/widgets.dart';
 
-enum PickupType { bomb, laser, shield }
+enum PickupType { bomb, laser, shield, health } // Added health
 
 class Pickup extends SpriteComponent with HasGameReference<MyGame> {
   final PickupType pickupType;
@@ -16,8 +15,23 @@ class Pickup extends SpriteComponent with HasGameReference<MyGame> {
 
   @override
   FutureOr<void> onLoad() async {
-    sprite = await game.loadSprite('${pickupType.name}_pickup.png');
+    String assetName;
+    switch (pickupType) {
+      case PickupType.bomb:
+        assetName = 'bomb_pickup.png';
+        break;
+      case PickupType.laser:
+        assetName = 'laser_pickup.png';
+        break;
+      case PickupType.shield:
+        assetName = 'shield_pickup.png';
+        break;
+      case PickupType.health:
+        assetName = 'health_pickup.png'; // your asset
+        break;
+    }
 
+    sprite = await game.loadSprite(assetName);
     add(CircleHitbox());
 
     final ScaleEffect pulsatingEffect = ScaleEffect.to(
@@ -40,7 +54,6 @@ class Pickup extends SpriteComponent with HasGameReference<MyGame> {
 
     position.y += 300 * dt;
 
-    // remove the pickup from the game if it goes below the bottom
     if (position.y > game.size.y + size.y / 2) {
       removeFromParent();
     }
