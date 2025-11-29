@@ -12,6 +12,7 @@ import 'package:cosmic_havoc/components/pickup.dart';
 import 'package:cosmic_havoc/components/player.dart';
 import 'package:cosmic_havoc/components/shoot_button.dart';
 import 'package:cosmic_havoc/components/star.dart';
+import 'package:cosmic_havoc/components/driver_hud.dart'; // NEW
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
@@ -40,6 +41,10 @@ class MyGame extends FlameGame
   int speedLevel = 0;
   int fireRateLevel = 0;
   // ------------------------------
+
+  // NEW: Selected driver index (0,1,2...)
+  int selectedDriver = 0;
+  late DriverHud driverHud; // NEW
 
   double get difficultyMultiplier => 1.0 + (_score / 500);
 
@@ -71,6 +76,7 @@ class MyGame extends FlameGame
     healthLevel = prefs.getInt('healthLevel') ?? 0;
     speedLevel = prefs.getInt('speedLevel') ?? 0;
     fireRateLevel = prefs.getInt('fireRateLevel') ?? 0;
+    selectedDriver = prefs.getInt('selectedDriver') ?? 0; // NEW
   }
 
   // --- NEW: Save all data ---
@@ -84,6 +90,7 @@ class MyGame extends FlameGame
     await prefs.setInt('healthLevel', healthLevel);
     await prefs.setInt('speedLevel', speedLevel);
     await prefs.setInt('fireRateLevel', fireRateLevel);
+    await prefs.setInt('selectedDriver', selectedDriver); // NEW
   }
 
   // --- NEW: Buy Logic ---
@@ -126,6 +133,10 @@ class MyGame extends FlameGame
     _createEnemySpawner();
     _createPickupSpawner();
     _createScoreDisplay();
+
+    // --- NEW: Driver HUD ---
+    driverHud = DriverHud();
+    add(driverHud);
 
     add(HealthBar());
     add(PauseButton());
@@ -292,9 +303,8 @@ class MyGame extends FlameGame
   }
 
   void playerDied() async {
-    // NEW: Add score to wallet
     wallet += _score;
-    await saveData(); // Use new save data function
+    await saveData();
     overlays.add('GameOver');
     pauseEngine();
   }
@@ -307,7 +317,8 @@ class MyGame extends FlameGame
           component is Enemy ||
           component is EnemyLaser ||
           component is PauseButton ||
-          component is Boss) {
+          component is Boss ||
+          component is DriverHud) { // INCLUDE HUD
         remove(component);
       }
     });
@@ -325,6 +336,10 @@ class MyGame extends FlameGame
     _scoreDisplay.text = '0';
 
     _createPlayer();
+
+    // RE-ADD HUD
+    driverHud = DriverHud();
+    add(driverHud);
 
     add(HealthBar());
     add(PauseButton());

@@ -61,6 +61,49 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
 
           const SizedBox(height: 30),
 
+          // --- DRIVER SELECTION ---
+          const Text(
+            'SELECT PILOT',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(widget.game.playerColors.length, (index) {
+              bool isSelected = widget.game.selectedDriver == index;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    widget.game.selectedDriver = index;
+                    widget.game.saveData(); // Save selection
+                    widget.game.audioManager.playSound('click');
+                  });
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isSelected ? Colors.yellow : Colors.white,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: CircleAvatar(
+                    radius: 24,
+                    backgroundImage: AssetImage('assets/images/driver_$index.png'),
+                  ),
+                ),
+              );
+            }),
+          ),
+
+          const SizedBox(height: 30),
+
           // UPGRADE 1: HULL (Health)
           _buildUpgradeRow(
             'Hull Armor',
