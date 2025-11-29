@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:cosmic_havoc/components/asteroid.dart';
 import 'package:cosmic_havoc/components/audio_manager.dart';
-import 'package:cosmic_havoc/components/boss.dart'; // NEW IMPORT
+import 'package:cosmic_havoc/components/boss.dart';
 import 'package:cosmic_havoc/components/enemy.dart';
 import 'package:cosmic_havoc/components/enemy_laser.dart';
 import 'package:cosmic_havoc/components/health_bar.dart';
@@ -32,9 +32,14 @@ class MyGame extends FlameGame
 
   int _score = 0;
   int highScore = 0;
-
-  // NEW: Track if the boss has been spawned
   bool _bossSpawned = false;
+
+  // --- NEW: Upgrade Variables ---
+  int wallet = 0;
+  int healthLevel = 0;
+  int speedLevel = 0;
+  int fireRateLevel = 0;
+  // ------------------------------
 
   double get difficultyMultiplier => 1.0 + (_score / 500);
 
@@ -51,29 +56,68 @@ class MyGame extends FlameGame
     audioManager = AudioManager();
     await add(audioManager);
 
-    await loadHighScore();
+    await loadData();
 
     _createStars();
 
     return super.onLoad();
   }
 
-  Future<void> loadHighScore() async {
+  // --- NEW: Load all data including upgrades ---
+  Future<void> loadData() async {
     final prefs = await SharedPreferences.getInstance();
     highScore = prefs.getInt('highScore') ?? 0;
+    wallet = prefs.getInt('wallet') ?? 0;
+    healthLevel = prefs.getInt('healthLevel') ?? 0;
+    speedLevel = prefs.getInt('speedLevel') ?? 0;
+    fireRateLevel = prefs.getInt('fireRateLevel') ?? 0;
   }
 
-  Future<void> checkNewHighScore() async {
+  // --- NEW: Save all data ---
+  Future<void> saveData() async {
+    final prefs = await SharedPreferences.getInstance();
     if (_score > highScore) {
       highScore = _score;
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('highScore', highScore);
     }
+    await prefs.setInt('wallet', wallet);
+    await prefs.setInt('healthLevel', healthLevel);
+    await prefs.setInt('speedLevel', speedLevel);
+    await prefs.setInt('fireRateLevel', fireRateLevel);
+  }
+
+  // --- NEW: Buy Logic ---
+  void buyUpgrade(String type) {
+    int cost = 0;
+
+    if (type == 'health' && healthLevel < 5) {
+      cost = 100 * (healthLevel + 1);
+      if (wallet >= cost) {
+        wallet -= cost;
+        healthLevel++;
+        audioManager.playSound('collect');
+      }
+    } else if (type == 'speed' && speedLevel < 5) {
+      cost = 100 * (speedLevel + 1);
+      if (wallet >= cost) {
+        wallet -= cost;
+        speedLevel++;
+        audioManager.playSound('collect');
+      }
+    } else if (type == 'fireRate' && fireRateLevel < 5) {
+      cost = 100 * (fireRateLevel + 1);
+      if (wallet >= cost) {
+        wallet -= cost;
+        fireRateLevel++;
+        audioManager.playSound('collect');
+      }
+    }
+    saveData();
   }
 
   void startGame() async {
     audioManager.playMusic();
-    _bossSpawned = false; // Reset boss state
+    _bossSpawned = false;
 
     await _createJoystick();
     await _createPlayer();
@@ -85,6 +129,22 @@ class MyGame extends FlameGame
 
     add(HealthBar());
     add(PauseButton());
+  }
+
+  // --- SCREEN SHAKE (Required by Player) ---
+  void shakeWorld({double intensity = 10, double duration = 0.05}) {
+    if (camera.viewfinder.children.whereType<MoveEffect>().isNotEmpty) return;
+
+    camera.viewfinder.add(
+      MoveEffect.by(
+        Vector2(intensity, intensity),
+        EffectController(
+          duration: duration,
+          alternate: true,
+          repeatCount: 4,
+        ),
+      ),
+    );
   }
 
   Future<void> _createPlayer() async {
@@ -210,26 +270,18 @@ class MyGame extends FlameGame
 
     _scoreDisplay.add(popEffect);
 
-    // NEW: Check if we should spawn the boss (Score >= 100)
     if (_score >= 200 && !_bossSpawned) {
       _spawnBoss();
     }
   }
 
-  // NEW: Logic to spawn the Boss
   void _spawnBoss() {
     _bossSpawned = true;
-
-    // Stop spawning regular enemies so the player can focus on the Boss
     _enemySpawner.timer.stop();
-
-    // Add the Boss component
     add(Boss());
   }
 
-  // NEW: Logic called when Boss is destroyed
   void bossDefeated() {
-    // Resume spawning regular enemies
     _enemySpawner.timer.start();
   }
 
@@ -240,13 +292,14 @@ class MyGame extends FlameGame
   }
 
   void playerDied() async {
-    await checkNewHighScore();
+    // NEW: Add score to wallet
+    wallet += _score;
+    await saveData(); // Use new save data function
     overlays.add('GameOver');
     pauseEngine();
   }
 
   void restartGame() {
-    // Remove all game entities
     children.whereType<PositionComponent>().forEach((component) {
       if (component is Asteroid ||
           component is Pickup ||
@@ -254,18 +307,19 @@ class MyGame extends FlameGame
           component is Enemy ||
           component is EnemyLaser ||
           component is PauseButton ||
-          component is Boss) { // NEW: Ensure Boss is removed on restart
+          component is Boss) {
         remove(component);
       }
     });
 
-    // Reset Boss State
     _bossSpawned = false;
 
-    // Restart Spawners
     _asteroidSpawner.timer.start();
     _pickupSpawner.timer.start();
     _enemySpawner.timer.start();
+
+    camera.viewfinder.children.whereType<MoveEffect>().forEach((e) => e.removeFromParent());
+    camera.viewfinder.position = Vector2.zero();
 
     _score = 0;
     _scoreDisplay.text = '0';

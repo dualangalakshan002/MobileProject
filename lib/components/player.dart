@@ -4,7 +4,7 @@ import 'dart:ui';
 
 import 'package:cosmic_havoc/components/asteroid.dart';
 import 'package:cosmic_havoc/components/bomb.dart';
-import 'package:cosmic_havoc/components/enemy.dart'; // NEW IMPORT
+import 'package:cosmic_havoc/components/enemy.dart';
 import 'package:cosmic_havoc/components/explosion.dart';
 import 'package:cosmic_havoc/components/laser.dart';
 import 'package:cosmic_havoc/components/pickup.dart';
@@ -13,6 +13,7 @@ import 'package:cosmic_havoc/my_game.dart';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
+import 'package:flame/particles.dart';
 import 'package:flutter/services.dart';
 
 class Player extends SpriteAnimationComponent
@@ -28,7 +29,7 @@ class Player extends SpriteAnimationComponent
   Shield? activeShield;
   late String _color;
 
-  // Health Variables
+  // Health
   double maxHealth = 100;
   double health = 100;
 
@@ -63,6 +64,39 @@ class Player extends SpriteAnimationComponent
     return super.onLoad();
   }
 
+  // ----------------------------------------------------------
+  // 🚀 NEW: Engine Thruster Particle Generator
+  // ----------------------------------------------------------
+  void _spawnThrusterParticle() {
+    final Vector2 particlePos =
+        position.clone() + Vector2(0, size.y * 0.55);
+
+    final particle = ParticleSystemComponent(
+      particle: Particle.generate(
+        count: 1,
+        lifespan: 0.15,
+        generator: (i) {
+          return AcceleratedParticle(
+            acceleration: Vector2(0, 200),
+            speed: Vector2(0, 50),
+            position: particlePos,
+            child: CircleParticle(
+              radius: 3 + _random.nextDouble() * 3,
+              paint: Paint()
+                ..color = Color.lerp(
+                  const Color(0xFFFFA800), // yellow
+                  const Color(0xFFFF3C00), // orange-red
+                  _random.nextDouble(),
+                )!,
+            ),
+          );
+        },
+      ),
+    );
+
+    game.add(particle);
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
@@ -71,6 +105,9 @@ class Player extends SpriteAnimationComponent
       _explosionTimer.update(dt);
       return;
     }
+
+    // Thrusters always run while alive
+    _spawnThrusterParticle();
 
     if (_laserPowerupTimer.isRunning()) {
       _laserPowerupTimer.update(dt);
@@ -222,24 +259,19 @@ class Player extends SpriteAnimationComponent
   @override
   void onCollision(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollision(intersectionPoints, other);
-
     if (_isDestroyed) return;
 
-    // UPDATED: Handle collision with Asteroid OR Enemy
     if (other is Asteroid || other is Enemy) {
       if (activeShield != null) {
-        // Shield logic: Destroy the object hitting us
         if (other is Asteroid) other.takeDamage();
-        if (other is Enemy) (other as Enemy).takeDamage();
+        if (other is Enemy) other.takeDamage();
         return;
       }
 
-      // Player Crash Logic
-      takeDamage(30); // Crashing hurts more than a laser
+      takeDamage(30);
 
-      // Damage the object we hit
       if (other is Asteroid) other.takeDamage();
-      if (other is Enemy) (other as Enemy).takeDamage();
+      if (other is Enemy) other.takeDamage();
 
     } else if (other is Pickup) {
       game.audioManager.playSound('collect');
@@ -255,9 +287,7 @@ class Player extends SpriteAnimationComponent
           game.add(Bomb(position: position.clone()));
           break;
         case PickupType.shield:
-          if (activeShield != null) {
-            remove(activeShield!);
-          }
+          if (activeShield != null) remove(activeShield!);
           activeShield = Shield();
           add(activeShield!);
           break;

@@ -45,23 +45,19 @@ class _TitleOverlayState extends State<TitleOverlay> {
               width: 270,
               child: Image.asset('assets/images/title.png'),
             ),
-
-            // NEW: Display High Score on Title Screen
             const SizedBox(height: 20),
+
+            // NEW: Show Credits on Title
             Text(
-              'HIGH SCORE: ${widget.game.highScore}',
+              'Credits: ${widget.game.wallet}',
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
+                color: Colors.yellow,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
-                shadows: [
-                  Shadow(blurRadius: 4, color: Colors.blue, offset: Offset(0, 0))
-                ],
               ),
             ),
 
             const SizedBox(height: 20),
-            // Character Selector Row
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -127,7 +123,21 @@ class _TitleOverlayState extends State<TitleOverlay> {
               ),
             ),
 
-            // Audio Controls (Bottom Right)
+            // NEW: HANGAR BUTTON
+            const SizedBox(height: 15),
+            ElevatedButton.icon(
+              onPressed: () {
+                widget.game.audioManager.playSound('click');
+                widget.game.overlays.remove('Title');
+                widget.game.overlays.add('Upgrades');
+              },
+              icon: const Icon(Icons.build, color: Colors.white),
+              label: const Text('SHIP HANGAR', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueGrey,
+              ),
+            ),
+
             Expanded(
               child: Align(
                 alignment: Alignment.bottomRight,
