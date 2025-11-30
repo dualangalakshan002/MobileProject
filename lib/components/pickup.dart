@@ -5,7 +5,8 @@ import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/widgets.dart';
 
-enum PickupType { bomb, laser, shield, health } // Added health
+// 1. Add 'speed' to the enum
+enum PickupType { bomb, laser, shield, health, speed }
 
 class Pickup extends SpriteComponent with HasGameReference<MyGame> {
   final PickupType pickupType;
@@ -27,7 +28,11 @@ class Pickup extends SpriteComponent with HasGameReference<MyGame> {
         assetName = 'shield_pickup.png';
         break;
       case PickupType.health:
-        assetName = 'health_pickup.png'; // your asset
+        assetName = 'health_pickup.png';
+        break;
+      // 2. Add case for speed pickup image
+      case PickupType.speed:
+        assetName = 'speed_pickup.png';
         break;
     }
 

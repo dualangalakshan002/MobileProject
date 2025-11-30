@@ -26,6 +26,11 @@ class Player extends SpriteAnimationComponent
   final Random _random = Random();
   late Timer _explosionTimer;
   late Timer _laserPowerupTimer;
+
+  // NEW: Speed Boost Timer and Multiplier
+  late Timer _speedPowerupTimer;
+  double _moveSpeedMultiplier = 1.0;
+
   Shield? activeShield;
   late String _color;
 
@@ -43,6 +48,13 @@ class Player extends SpriteAnimationComponent
 
     _laserPowerupTimer = Timer(
       10.0,
+      autoStart: false,
+    );
+
+    // NEW: Initialize Speed Timer (e.g., 8 seconds duration)
+    _speedPowerupTimer = Timer(
+      8.0,
+      onTick: _resetSpeed,
       autoStart: false,
     );
   }
@@ -65,11 +77,26 @@ class Player extends SpriteAnimationComponent
   }
 
   // ----------------------------------------------------------
-  // 🚀 NEW: Engine Thruster Particle Generator
+  // 🚀 ENGINE THRUSTER PARTICLES (Updated for Speed Boost)
   // ----------------------------------------------------------
   void _spawnThrusterParticle() {
     final Vector2 particlePos =
         position.clone() + Vector2(0, size.y * 0.55);
+
+    // NEW: Change particle color if Speed Boost is active
+    final bool isSpeedBoosted = _moveSpeedMultiplier > 1.0;
+
+    // Normal: Orange/Red. Boosted: Cyan/Blue
+    final Color colorStart = isSpeedBoosted
+        ? const Color(0xFF00FFFF) // Cyan
+        : const Color(0xFFFFA800); // Orange
+
+    final Color colorEnd = isSpeedBoosted
+        ? const Color(0xFF0077FF) // Blue
+        : const Color(0xFFFF3C00); // Red
+
+    // Boosted particles are slightly faster/larger
+    final double speedFactor = isSpeedBoosted ? 2.0 : 1.0;
 
     final particle = ParticleSystemComponent(
       particle: Particle.generate(
@@ -77,15 +104,15 @@ class Player extends SpriteAnimationComponent
         lifespan: 0.15,
         generator: (i) {
           return AcceleratedParticle(
-            acceleration: Vector2(0, 200),
-            speed: Vector2(0, 50),
+            acceleration: Vector2(0, 200 * speedFactor),
+            speed: Vector2(0, 50 * speedFactor),
             position: particlePos,
             child: CircleParticle(
-              radius: 3 + _random.nextDouble() * 3,
+              radius: (3 + _random.nextDouble() * 3) * (isSpeedBoosted ? 1.2 : 1.0),
               paint: Paint()
                 ..color = Color.lerp(
-                  const Color(0xFFFFA800), // yellow
-                  const Color(0xFFFF3C00), // orange-red
+                  colorStart,
+                  colorEnd,
                   _random.nextDouble(),
                 )!,
             ),
@@ -106,15 +133,21 @@ class Player extends SpriteAnimationComponent
       return;
     }
 
-    // Thrusters always run while alive
     _spawnThrusterParticle();
 
     if (_laserPowerupTimer.isRunning()) {
       _laserPowerupTimer.update(dt);
     }
+    // NEW: Update Speed Timer
+    if (_speedPowerupTimer.isRunning()) {
+      _speedPowerupTimer.update(dt);
+    }
 
     final Vector2 movement = game.joystick.relativeDelta + _keyboardMovement;
-    position += movement.normalized() * 200 * dt;
+
+    // NEW: Apply the _moveSpeedMultiplier here
+    // Base speed 200 * Multiplier
+    position += movement.normalized() * 200 * _moveSpeedMultiplier * dt;
 
     _handleScreenBounds();
 
@@ -164,6 +197,7 @@ class Player extends SpriteAnimationComponent
   void _fireLaser() {
     game.audioManager.playSound('laser');
 
+    // ... (Existing laser logic) ...
     game.add(
       Laser(position: position.clone() + Vector2(0, -size.y / 2)),
     );
@@ -206,6 +240,7 @@ class Player extends SpriteAnimationComponent
   }
 
   void _handleDestruction() async {
+    // ... (Existing destruction logic) ...
     animation = SpriteAnimation.spriteList(
       [
         await game.loadSprite('player_${_color}_off.png'),
@@ -239,6 +274,7 @@ class Player extends SpriteAnimationComponent
   }
 
   void _createRandomExplosion() {
+     // ... (Existing explosion logic) ...
     final Vector2 explosionPosition = Vector2(
       position.x - size.x / 2 + _random.nextDouble() * size.x,
       position.y - size.y / 2 + _random.nextDouble() * size.y,
@@ -254,6 +290,11 @@ class Player extends SpriteAnimationComponent
     );
 
     game.add(explosion);
+  }
+
+  // NEW: Reset speed callback
+  void _resetSpeed() {
+    _moveSpeedMultiplier = 1.0;
   }
 
   @override
@@ -290,9 +331,15 @@ class Player extends SpriteAnimationComponent
             activeShield = Shield();
             add(activeShield!);
             break;
-          case PickupType.health: // NEW
-            health += 30; // restore 30 health
+          case PickupType.health:
+            health += 30;
             if (health > maxHealth) health = maxHealth;
+            break;
+          // NEW: Handle Speed Pickup
+          case PickupType.speed:
+            _moveSpeedMultiplier = 2.0; // Double speed
+            _speedPowerupTimer.stop(); // Reset timer if already running
+            _speedPowerupTimer.start();
             break;
         }
       }

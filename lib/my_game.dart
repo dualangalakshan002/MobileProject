@@ -434,18 +434,31 @@ class MyGame extends FlameGame
   }
 
   void quitGame() {
-    children.whereType<PositionComponent>().forEach((component) {
-      if (component is! Star && component is! ParallaxComponent) {
-        remove(component);
+      // 1. Create a snapshot list using .toList().
+      // This prevents errors caused by modifying the list while looping through it.
+      final itemsToRemove = children.whereType<PositionComponent>().toList();
+
+      for (final component in itemsToRemove) {
+        // 2. Check types we want to keep
+        if (component is! Star && component is! ParallaxComponent) {
+
+          // 3. SAFETY CHECK: Only remove if it actually has a parent
+          if (component.parent != null) {
+            component.removeFromParent();
+          }
+        }
       }
-    });
 
-    remove(_asteroidSpawner);
-    remove(_pickupSpawner);
-    remove(_enemySpawner);
+      // 4. Safely remove spawners (check if mounted/has parent first)
+      if (_asteroidSpawner.parent != null) _asteroidSpawner.removeFromParent();
+      if (_pickupSpawner.parent != null) _pickupSpawner.removeFromParent();
+      if (_enemySpawner.parent != null) _enemySpawner.removeFromParent();
 
-    overlays.add('Title');
+      // 5. Manage Overlays
+      overlays.remove('GameOver');
+      overlays.remove('Pause');
+      overlays.add('Title');
 
-    resumeEngine();
-  }
+      resumeEngine();
+    }
 }
