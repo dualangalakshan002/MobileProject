@@ -29,8 +29,12 @@ jobs:
       - name: Flutter clean
         run: flutter clean
 
+      - name: Get Dependencies
+        run: flutter pub get
+
+      # MODIFIED STEP: Added --web-renderer canvaskit
       - name: Build Flutter Web
-        run: flutter build web --release
+        run: flutter build web --release --web-renderer canvaskit
 
       - name: Deploy to Firebase Hosting
         run: firebase deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}"
