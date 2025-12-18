@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:cosmic_havoc/components/asteroid.dart';
+import 'package:cosmic_havoc/components/enemy.dart'; // Import Enemy
 import 'package:cosmic_havoc/my_game.dart';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
@@ -17,21 +18,15 @@ class Laser extends SpriteComponent
   @override
   FutureOr<void> onLoad() async {
     sprite = await game.loadSprite('laser.png');
-
     size *= 0.25;
-
     add(RectangleHitbox());
-
     return super.onLoad();
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-
     position += Vector2(sin(angle), -cos(angle)) * 500 * dt;
-
-    // remove the laser from the game if it goes above the top
     if (position.y < -size.y / 2) {
       removeFromParent();
     }
@@ -44,6 +39,11 @@ class Laser extends SpriteComponent
     if (other is Asteroid) {
       removeFromParent();
       other.takeDamage();
+      game.chargeEnergy(5); // +5 Energy per asteroid
+    } else if (other is Enemy) {
+      removeFromParent();
+      other.takeDamage();
+      game.chargeEnergy(10); // +10 Energy per enemy
     }
   }
 }

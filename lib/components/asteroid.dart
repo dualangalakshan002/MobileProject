@@ -17,14 +17,12 @@ class Asteroid extends SpriteComponent with HasGameReference<MyGame> {
   final double _maxHealth = 3;
   late double _health;
   bool _isKnockedback = false;
-
-  // NEW: Store the speed multiplier
   final double speedMultiplier;
 
   Asteroid({
     required super.position,
     double size = _maxSize,
-    this.speedMultiplier = 1.0, // Default to 1.0 (normal speed)
+    this.speedMultiplier = 1.0,
   }) : super(
           size: Vector2.all(size),
           anchor: Anchor.center,
@@ -42,30 +40,23 @@ class Asteroid extends SpriteComponent with HasGameReference<MyGame> {
   FutureOr<void> onLoad() async {
     final int imageNum = _random.nextInt(3) + 1;
     sprite = await game.loadSprite('asteroid$imageNum.png');
-
     return super.onLoad();
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-
-    position += _velocity * dt;
-
+    position += _velocity * dt * game.timeScale;
+    angle += _spinSpeed * dt * game.timeScale;
     _handleScreenBounds();
-
-    angle += _spinSpeed * dt;
   }
 
   Vector2 _generateVelocity() {
     final double forceFactor = _maxSize / size.x;
-
     Vector2 baseVelocity = Vector2(
       _random.nextDouble() * 120 - 60,
       100 + _random.nextDouble() * 50,
     ) * forceFactor;
-
-    // UPDATED: Multiply the base velocity by the difficulty multiplier
     return baseVelocity * speedMultiplier;
   }
 
@@ -73,7 +64,6 @@ class Asteroid extends SpriteComponent with HasGameReference<MyGame> {
     if (position.y > game.size.y + size.y / 2) {
       removeFromParent();
     }
-
     final double screenWidth = game.size.x;
     if (position.x < -size.x / 2) {
       position.x = screenWidth + size.x / 2;
@@ -82,9 +72,9 @@ class Asteroid extends SpriteComponent with HasGameReference<MyGame> {
     }
   }
 
+  // Called by bullets (Normal damage)
   void takeDamage() {
     game.audioManager.playSound('hit');
-
     _health--;
 
     if (_health <= 0) {
@@ -97,6 +87,14 @@ class Asteroid extends SpriteComponent with HasGameReference<MyGame> {
       _flashWhite();
       _applyKnockback();
     }
+  }
+
+  // NEW: Called by Nuke (Instant Kill, no split)
+  void destroyInstantly() {
+    // We do NOT call splitAsteroid here to avoid flooding the screen
+    game.incrementScore(5);
+    removeFromParent();
+    _createExplosion();
   }
 
   void _flashWhite() {
@@ -113,16 +111,11 @@ class Asteroid extends SpriteComponent with HasGameReference<MyGame> {
 
   void _applyKnockback() {
     if (_isKnockedback) return;
-
     _isKnockedback = true;
-
     _velocity.setZero();
-
     final MoveByEffect knockbackEffect = MoveByEffect(
       Vector2(0, -20),
-      EffectController(
-        duration: 0.1,
-      ),
+      EffectController(duration: 0.1),
       onComplete: _restoreVelocity,
     );
     add(knockbackEffect);
@@ -130,7 +123,6 @@ class Asteroid extends SpriteComponent with HasGameReference<MyGame> {
 
   void _restoreVelocity() {
     _velocity.setFrom(_originalVelocity);
-
     _isKnockedback = false;
   }
 
@@ -145,12 +137,11 @@ class Asteroid extends SpriteComponent with HasGameReference<MyGame> {
 
   void _splitAsteroid() {
     if (size.x <= _maxSize / 3) return;
-
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
       final Asteroid fragment = Asteroid(
         position: position.clone(),
         size: size.x - _maxSize / 3,
-        speedMultiplier: speedMultiplier, // Pass multiplier to children
+        speedMultiplier: speedMultiplier,
       );
       game.add(fragment);
     }

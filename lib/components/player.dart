@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
+import 'package:flutter/material.dart';
 
 import 'package:cosmic_havoc/components/asteroid.dart';
 import 'package:cosmic_havoc/components/bomb.dart';
@@ -26,17 +27,17 @@ class Player extends SpriteAnimationComponent
   final Random _random = Random();
   late Timer _explosionTimer;
   late Timer _laserPowerupTimer;
-
-  // NEW: Speed Boost Timer and Multiplier
   late Timer _speedPowerupTimer;
   double _moveSpeedMultiplier = 1.0;
-
   Shield? activeShield;
   late String _color;
-
-  // Health
   double maxHealth = 100;
   double health = 100;
+
+  // NEW: Super Laser Duration
+  double _superLaserTimer = 0.0;
+  final double _superLaserCooldown = 0.15; // Fires very fast
+  double _superLaserElapsed = 0.0;
 
   Player() {
     _explosionTimer = Timer(
@@ -45,57 +46,35 @@ class Player extends SpriteAnimationComponent
       repeat: true,
       autoStart: false,
     );
-
-    _laserPowerupTimer = Timer(
-      10.0,
-      autoStart: false,
-    );
-
-    // NEW: Initialize Speed Timer (e.g., 8 seconds duration)
-    _speedPowerupTimer = Timer(
-      8.0,
-      onTick: _resetSpeed,
-      autoStart: false,
-    );
+    _laserPowerupTimer = Timer(10.0, autoStart: false);
+    _speedPowerupTimer = Timer(8.0, onTick: _resetSpeed, autoStart: false);
   }
 
   @override
   FutureOr<void> onLoad() async {
     _color = game.playerColors[game.playerColorIndex];
-
     animation = await _loadAnimation();
-
     size *= 0.3;
-
     add(RectangleHitbox.relative(
       Vector2(0.6, 0.9),
       parentSize: size,
       anchor: Anchor.center,
     ));
-
     return super.onLoad();
   }
 
-  // ----------------------------------------------------------
-  // 🚀 ENGINE THRUSTER PARTICLES (Updated for Speed Boost)
-  // ----------------------------------------------------------
   void _spawnThrusterParticle() {
-    final Vector2 particlePos =
-        position.clone() + Vector2(0, size.y * 0.55);
-
-    // NEW: Change particle color if Speed Boost is active
+    final Vector2 particlePos = position.clone() + Vector2(0, size.y * 0.55);
     final bool isSpeedBoosted = _moveSpeedMultiplier > 1.0;
+    // Blue for speed boost, Red/Orange normally, Purple for Super Laser mode
+    Color colorStart = isSpeedBoosted ? const Color(0xFF00FFFF) : const Color(0xFFFFA800);
+    Color colorEnd = isSpeedBoosted ? const Color(0xFF0077FF) : const Color(0xFFFF3C00);
 
-    // Normal: Orange/Red. Boosted: Cyan/Blue
-    final Color colorStart = isSpeedBoosted
-        ? const Color(0xFF00FFFF) // Cyan
-        : const Color(0xFFFFA800); // Orange
+    if (_superLaserTimer > 0) {
+       colorStart = Colors.purpleAccent;
+       colorEnd = Colors.deepPurple;
+    }
 
-    final Color colorEnd = isSpeedBoosted
-        ? const Color(0xFF0077FF) // Blue
-        : const Color(0xFFFF3C00); // Red
-
-    // Boosted particles are slightly faster/larger
     final double speedFactor = isSpeedBoosted ? 2.0 : 1.0;
 
     final particle = ParticleSystemComponent(
@@ -110,45 +89,40 @@ class Player extends SpriteAnimationComponent
             child: CircleParticle(
               radius: (3 + _random.nextDouble() * 3) * (isSpeedBoosted ? 1.2 : 1.0),
               paint: Paint()
-                ..color = Color.lerp(
-                  colorStart,
-                  colorEnd,
-                  _random.nextDouble(),
-                )!,
+                ..color = Color.lerp(colorStart, colorEnd, _random.nextDouble())!,
             ),
           );
         },
       ),
     );
-
     game.add(particle);
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-
     if (_isDestroyed) {
       _explosionTimer.update(dt);
       return;
     }
-
     _spawnThrusterParticle();
+    if (_laserPowerupTimer.isRunning()) _laserPowerupTimer.update(dt);
+    if (_speedPowerupTimer.isRunning()) _speedPowerupTimer.update(dt);
 
-    if (_laserPowerupTimer.isRunning()) {
-      _laserPowerupTimer.update(dt);
-    }
-    // NEW: Update Speed Timer
-    if (_speedPowerupTimer.isRunning()) {
-      _speedPowerupTimer.update(dt);
+    // --- NEW: Handle Super Laser Timer ---
+    if (_superLaserTimer > 0) {
+      _superLaserTimer -= dt;
+      _superLaserElapsed += dt;
+
+      // Auto-fire heavy lasers while active
+      if (_superLaserElapsed >= _superLaserCooldown) {
+        _fireSuperLaserBurst();
+        _superLaserElapsed = 0.0;
+      }
     }
 
     final Vector2 movement = game.joystick.relativeDelta + _keyboardMovement;
-
-    // NEW: Apply the _moveSpeedMultiplier here
-    // Base speed 200 * Multiplier
     position += movement.normalized() * 200 * _moveSpeedMultiplier * dt;
-
     _handleScreenBounds();
 
     _elapsedFireTime += dt;
@@ -172,13 +146,7 @@ class Player extends SpriteAnimationComponent
   void _handleScreenBounds() {
     final double screenWidth = game.size.x;
     final double screenHeight = game.size.y;
-
-    position.y = clampDouble(
-      position.y,
-      size.y / 2,
-      screenHeight - size.y / 2,
-    );
-
+    position.y = clampDouble(position.y, size.y / 2, screenHeight - size.y / 2);
     if (position.x < 0) {
       position.x = screenWidth;
     } else if (position.x > screenWidth) {
@@ -189,50 +157,46 @@ class Player extends SpriteAnimationComponent
   void startShooting() {
     _isShooting = true;
   }
-
   void stopShooting() {
     _isShooting = false;
   }
 
   void _fireLaser() {
     game.audioManager.playSound('laser');
-
-    // ... (Existing laser logic) ...
-    game.add(
-      Laser(position: position.clone() + Vector2(0, -size.y / 2)),
-    );
-
+    game.add(Laser(position: position.clone() + Vector2(0, -size.y / 2)));
     if (_laserPowerupTimer.isRunning()) {
+      game.add(Laser(position: position.clone() + Vector2(0, -size.y / 2), angle: 15 * degrees2Radians));
+      game.add(Laser(position: position.clone() + Vector2(0, -size.y / 2), angle: -15 * degrees2Radians));
+    }
+  }
+
+  // Called by MyGame to START the mode
+  void activateSuperLaserMode() {
+    _superLaserTimer = 3.0; // Lasts 3 seconds
+    game.audioManager.playSound('collect'); // Activation sound
+  }
+
+  // Internal helper to fire the actual burst
+  void _fireSuperLaserBurst() {
+    game.audioManager.playSound('laser');
+    // Fire spread of 3 heavy lasers
+    for (int i = -1; i <= 1; i++) {
       game.add(
         Laser(
           position: position.clone() + Vector2(0, -size.y / 2),
-          angle: 15 * degrees2Radians,
-        ),
-      );
-      game.add(
-        Laser(
-          position: position.clone() + Vector2(0, -size.y / 2),
-          angle: -15 * degrees2Radians,
-        ),
+          angle: (i * 15) * degrees2Radians,
+        )
+        ..size *= 2.5 // Make them huge
+        ..priority = 1, // Ensure they are on top of other items
       );
     }
   }
 
   void takeDamage(double damage) {
     if (_isDestroyed) return;
-
     health -= damage;
-
-    add(ColorEffect(
-      const Color.fromRGBO(255, 0, 0, 1.0),
-      EffectController(
-        duration: 0.1,
-        alternate: true,
-      ),
-    ));
-
+    add(ColorEffect(const Color.fromRGBO(255, 0, 0, 1.0), EffectController(duration: 0.1, alternate: true)));
     game.audioManager.playSound('hit');
-
     if (health <= 0) {
       health = 0;
       _handleDestruction();
@@ -240,59 +204,32 @@ class Player extends SpriteAnimationComponent
   }
 
   void _handleDestruction() async {
-    // ... (Existing destruction logic) ...
     animation = SpriteAnimation.spriteList(
-      [
-        await game.loadSprite('player_${_color}_off.png'),
-      ],
+      [await game.loadSprite('player_${_color}_off.png')],
       stepTime: double.infinity,
     );
-
-    add(ColorEffect(
-      const Color.fromRGBO(255, 255, 255, 1.0),
-      EffectController(duration: 0.0),
-    ));
-
-    add(OpacityEffect.fadeOut(
-      EffectController(duration: 3.0),
-      onComplete: () => _explosionTimer.stop(),
-    ));
-
-    add(MoveEffect.by(
-      Vector2(0, 200),
-      EffectController(duration: 3.0),
-    ));
-
-    add(RemoveEffect(
-      delay: 4.0,
-      onComplete: game.playerDied,
-    ));
-
+    add(ColorEffect(const Color.fromRGBO(255, 255, 255, 1.0), EffectController(duration: 0.0)));
+    add(OpacityEffect.fadeOut(EffectController(duration: 3.0), onComplete: () => _explosionTimer.stop()));
+    add(MoveEffect.by(Vector2(0, 200), EffectController(duration: 3.0)));
+    add(RemoveEffect(delay: 4.0, onComplete: game.playerDied));
     _isDestroyed = true;
-
     _explosionTimer.start();
   }
 
   void _createRandomExplosion() {
-     // ... (Existing explosion logic) ...
     final Vector2 explosionPosition = Vector2(
       position.x - size.x / 2 + _random.nextDouble() * size.x,
       position.y - size.y / 2 + _random.nextDouble() * size.y,
     );
-
-    final ExplosionType explosionType =
-        _random.nextBool() ? ExplosionType.smoke : ExplosionType.fire;
-
+    final ExplosionType explosionType = _random.nextBool() ? ExplosionType.smoke : ExplosionType.fire;
     final Explosion explosion = Explosion(
       position: explosionPosition,
       explosionSize: size.x * 0.7,
       explosionType: explosionType,
     );
-
     game.add(explosion);
   }
 
-  // NEW: Reset speed callback
   void _resetSpeed() {
     _moveSpeedMultiplier = 1.0;
   }
@@ -308,9 +245,7 @@ class Player extends SpriteAnimationComponent
         if (other is Enemy) other.takeDamage();
         return;
       }
-
       takeDamage(30);
-
       if (other is Asteroid) other.takeDamage();
       if (other is Enemy) other.takeDamage();
 
@@ -335,31 +270,23 @@ class Player extends SpriteAnimationComponent
             health += 30;
             if (health > maxHealth) health = maxHealth;
             break;
-          // NEW: Handle Speed Pickup
           case PickupType.speed:
-            _moveSpeedMultiplier = 2.0; // Double speed
-            _speedPowerupTimer.stop(); // Reset timer if already running
+            _moveSpeedMultiplier = 2.0;
+            _speedPowerupTimer.stop();
             _speedPowerupTimer.start();
             break;
         }
       }
-
   }
 
   @override
   bool onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
     _keyboardMovement.x = 0;
-    _keyboardMovement.x +=
-        keysPressed.contains(LogicalKeyboardKey.arrowLeft) ? -1 : 0;
-    _keyboardMovement.x +=
-        keysPressed.contains(LogicalKeyboardKey.arrowRight) ? 1 : 0;
-
+    _keyboardMovement.x += keysPressed.contains(LogicalKeyboardKey.arrowLeft) ? -1 : 0;
+    _keyboardMovement.x += keysPressed.contains(LogicalKeyboardKey.arrowRight) ? 1 : 0;
     _keyboardMovement.y = 0;
-    _keyboardMovement.y +=
-        keysPressed.contains(LogicalKeyboardKey.arrowUp) ? -1 : 0;
-    _keyboardMovement.y +=
-        keysPressed.contains(LogicalKeyboardKey.arrowDown) ? 1 : 0;
-
+    _keyboardMovement.y += keysPressed.contains(LogicalKeyboardKey.arrowUp) ? -1 : 0;
+    _keyboardMovement.y += keysPressed.contains(LogicalKeyboardKey.arrowDown) ? 1 : 0;
     return true;
   }
 }
