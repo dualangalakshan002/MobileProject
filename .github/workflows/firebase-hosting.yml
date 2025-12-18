@@ -22,6 +22,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.27.0' # Optional: You can pin a version if 'stable' breaks things, but try removing the flag first.
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
@@ -32,9 +33,9 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      # MODIFIED STEP: Added --web-renderer canvaskit
+      # FIX: Removed the failing --web-renderer flag
       - name: Build Flutter Web
-        run: flutter build web --release --web-renderer canvaskit
+        run: flutter build web --release
 
       - name: Deploy to Firebase Hosting
         run: firebase deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}"
