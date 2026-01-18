@@ -22,7 +22,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.27.0' # Optional: You can pin a version if 'stable' breaks things, but try removing the flag first.
+          flutter-version: '3.27.0'
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
@@ -33,7 +33,7 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      # FIX: Removed the failing --web-renderer flag
+
       - name: Build Flutter Web
         run: flutter build web --release
 
