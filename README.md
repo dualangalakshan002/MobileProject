@@ -1,2 +1,2 @@
-# Cosmic Havoc
+# Cosmic Havoc Mobile Application
 
