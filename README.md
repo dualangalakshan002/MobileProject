@@ -1,4 +1,4 @@
-# Cosmic Havoc
+# Cosmic Havoc Mobile Application
 
 A 2D space shooter game created with the Flame game engine in Flutter.
 
